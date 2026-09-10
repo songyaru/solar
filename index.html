@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>太阳系演示 · Solar System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -140,6 +140,8 @@
       letter-spacing: 0.12em;
       text-transform: uppercase;
     }
+    /* Desktop never shows the mobile “tap to expand” hint */
+    .panel-hint { display: none !important; }
     .close-btn {
       width: 28px;
       height: 28px;
@@ -150,6 +152,8 @@
       cursor: pointer;
       font-size: 16px;
       line-height: 1;
+      display: grid;
+      place-items: center;
       transition: color 0.15s, border-color 0.15s, background 0.15s;
     }
     .close-btn:hover {
@@ -292,8 +296,9 @@
       border-radius: 16px;
       z-index: 12;
       max-width: calc(100vw - 32px);
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       justify-content: center;
+      overflow: hidden;
     }
     .dock button {
       appearance: none;
@@ -307,6 +312,7 @@
       cursor: pointer;
       transition: background 0.15s, border-color 0.15s, color 0.15s;
       white-space: nowrap;
+      flex: 0 0 auto;
     }
     .dock button:hover {
       background: rgba(94, 235, 255, 0.1);
@@ -322,7 +328,8 @@
       align-items: center;
       gap: 8px;
       padding: 4px 10px 4px 12px;
-      min-width: 180px;
+      min-width: 0;
+      flex: 1 1 auto;
     }
     .dock label {
       font-size: 11px;
@@ -332,8 +339,10 @@
     }
     .dock input[type="range"] {
       width: 100px;
+      min-width: 48px;
       accent-color: var(--hud);
       cursor: pointer;
+      flex: 1 1 auto;
     }
     #speedVal {
       min-width: 36px;
@@ -439,22 +448,216 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* Mobile / portrait */
     @media (max-width: 820px) {
       .hints { display: none; }
-      .planet-nav { display: none; }
+
+      .topbar {
+        top: max(10px, env(safe-area-inset-top));
+        left: 10px;
+        right: 10px;
+      }
+      .brand {
+        min-width: 0;
+        padding: 8px 12px;
+      }
+      .brand h1 { font-size: 15px; }
+      .brand p { font-size: 10px; margin-top: 2px; }
+
+      /* Bottom stack: dock → planet nav → panel. Explicit heights so nothing overlaps. */
+      :root {
+        --dock-h: 44px;
+        --nav-h: 52px;
+        --stack-gap: 8px;
+        --safe-bottom: max(6px, env(safe-area-inset-bottom));
+        --nav-bottom: calc(var(--safe-bottom) + var(--dock-h) + var(--stack-gap));
+        --panel-bottom: calc(var(--safe-bottom) + var(--dock-h) + var(--nav-h) + var(--stack-gap) * 2);
+      }
+
+      /* Horizontal planet strip */
+      .planet-nav {
+        display: flex;
+        flex-direction: row;
+        left: 8px;
+        right: 8px;
+        top: auto;
+        bottom: var(--nav-bottom);
+        transform: none;
+        overflow-x: auto;
+        overflow-y: hidden;
+        gap: 4px;
+        padding: 6px 8px;
+        height: var(--nav-h);
+        box-sizing: border-box;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        max-width: none;
+        z-index: 11;
+      }
+      .planet-nav::-webkit-scrollbar { display: none; }
+      .planet-nav button {
+        width: 40px;
+        height: 40px;
+        flex: 0 0 auto;
+      }
+      .planet-nav .dot {
+        width: 22px;
+        height: 22px;
+      }
+
+      /* Card matches dock/nav width, border, and strip height */
       .panel {
-        left: 12px;
-        right: 12px;
+        left: 8px;
+        right: 8px;
         width: auto;
         top: auto;
-        bottom: 78px;
-        max-height: 42vh;
+        bottom: var(--panel-bottom);
+        max-height: min(38vh, 300px);
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        padding: 10px 12px 12px;
         transform: translateY(12px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+        background: rgba(6, 10, 20, 0.52);
+        backdrop-filter: blur(22px) saturate(165%);
+        -webkit-backdrop-filter: blur(22px) saturate(165%);
+        z-index: 12;
+        box-sizing: border-box;
       }
       .panel.open { transform: translateY(0); }
-      .dock { bottom: 10px; gap: 6px; padding: 8px; }
-      .dock .slider-wrap { min-width: 0; }
-      .dock input[type="range"] { width: 70px; }
+      /* Collapsed strips share dock height so the three bars look like one stack */
+      .panel[data-mode="overview"],
+      .panel[data-mode="detail"].minimized {
+        max-height: var(--dock-h);
+        height: var(--dock-h);
+        padding: 0 12px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+      }
+      .panel[data-mode="overview"] .panel-eyebrow,
+      .panel[data-mode="detail"].minimized .panel-eyebrow {
+        margin: 0;
+        width: 100%;
+      }
+      .panel[data-mode="detail"].minimized #panelBody {
+        display: none;
+      }
+      .panel[data-mode="detail"] .panel-eyebrow {
+        cursor: pointer;
+      }
+      .planet-head h2 { font-size: 22px; }
+      .stats { grid-template-columns: 1fr 1fr; gap: 6px; }
+      .stat { padding: 8px 10px; }
+      .stat dd { font-size: 12px; }
+      .fun-facts li { font-size: 12px; }
+      .compare-box { font-size: 12px; }
+      #panelBody .badge-hint { display: none; }
+
+      .dock {
+        left: 8px;
+        right: 8px;
+        bottom: var(--safe-bottom);
+        transform: none;
+        width: auto;
+        max-width: none;
+        gap: 4px;
+        padding: 5px 6px;
+        min-height: var(--dock-h);
+        box-sizing: border-box;
+        border-radius: 12px;
+        justify-content: space-between;
+        z-index: 13;
+      }
+      .dock button {
+        padding: 6px 8px;
+        min-height: 32px;
+        font-size: 11px;
+        border-radius: 8px;
+      }
+      .dock .slider-wrap {
+        min-width: 0;
+        flex: 1;
+        gap: 4px;
+        padding: 0 4px;
+      }
+      .dock input[type="range"] {
+        width: 100%;
+        min-width: 40px;
+        height: 22px;
+      }
+      #speedVal { min-width: 28px; font-size: 10px; }
+      .dock label { font-size: 10px; }
+
+      /* Overview default-collapsed strip (mobile only) */
+      .panel[data-mode="overview"] .panel-eyebrow {
+        margin-bottom: 0;
+      }
+      .panel[data-mode="overview"] #panelBody {
+        display: none;
+      }
+      .panel[data-mode="overview"].expanded {
+        max-height: min(38vh, 300px);
+        height: auto;
+        padding: 12px 14px 14px;
+        overflow-y: auto;
+        display: block;
+      }
+      .panel[data-mode="overview"].expanded #panelBody {
+        display: block;
+      }
+      .panel[data-mode="overview"].expanded .panel-eyebrow {
+        margin-bottom: 10px;
+        width: auto;
+      }
+      .panel[data-mode="overview"] .panel-eyebrow span {
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: none;
+      }
+      .panel[data-mode="overview"] .close-btn {
+        font-size: 14px;
+        line-height: 1;
+      }
+    }
+
+    /* Desktop overview has no close action */
+    @media (min-width: 821px) {
+      .panel[data-mode="overview"] .close-btn {
+        display: none;
+      }
+    }
+
+    /* Extra-narrow phones: compact dock labels */
+    @media (max-width: 380px) {
+      .dock button { padding: 6px 6px; font-size: 10px; }
+      .planet-nav button { width: 34px; height: 34px; }
+    }
+
+    /* Narrow window: keep dock on one line */
+    @media (max-width: 720px) {
+      .dock {
+        gap: 6px;
+        padding: 8px 10px;
+        flex-wrap: nowrap;
+      }
+      .dock label { display: none; }
+      .dock .slider-wrap { min-width: 0; padding: 0 4px; }
+      .dock input[type="range"] { min-width: 56px; width: 80px; }
+      #speedVal { min-width: 32px; }
+    }
+
+    /* Landscape phone: keep side panel but tighter */
+    @media (max-width: 920px) and (max-height: 480px) and (orientation: landscape) {
+      .panel {
+        width: 280px;
+        max-height: calc(100vh - 90px);
+        top: 70px;
+        bottom: auto;
+      }
+      .planet-nav { display: none; }
     }
   </style>
 </head>
@@ -485,7 +688,7 @@
     <aside class="panel glass" id="infoPanel" aria-live="polite">
       <div class="panel-eyebrow">
         <span id="panelEyebrow">OVERVIEW</span>
-        <button class="close-btn" id="closePanel" title="关闭" aria-label="关闭">×</button>
+        <button class="close-btn" id="closePanel" title="关闭" aria-label="关闭或收起">×</button>
       </div>
       <div id="panelBody"></div>
     </aside>
@@ -1080,6 +1283,24 @@
     const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 800);
     camera.position.set(28, 22, 42);
 
+    function isPortraitPhone() {
+      return window.innerWidth < 820 && window.innerHeight >= window.innerWidth;
+    }
+
+    function applyCameraFit(keepDistance = false) {
+      const portrait = isPortraitPhone();
+      // Wider FOV on portrait so the system still fits a tall narrow viewport
+      camera.fov = portrait ? 58 : 48;
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      if (!keepDistance && portrait) {
+        // pull back a bit for first paint on phones
+        const d = camera.position.length();
+        if (d < 30) camera.position.setLength(36);
+      }
+    }
+    applyCameraFit(false);
+
     const controls = new OrbitControls(camera, canvas);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
@@ -1361,35 +1582,48 @@
     }
 
     function makeLabelSprite(text) {
-      const pad = 10;
-      const fontSize = 28;
+      const pad = 12;
+      const fontSize = 32;
       const c = document.createElement('canvas');
       const ctx = c.getContext('2d');
-      ctx.font = `600 ${fontSize}px "IBM Plex Sans", "PingFang SC", sans-serif`;
+      ctx.font = `700 ${fontSize}px "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", sans-serif`;
       const w = Math.ceil(ctx.measureText(text).width) + pad * 2;
       const h = fontSize + pad * 2;
-      c.width = w * 2;
-      c.height = h * 2;
+      // 3× resolution so the chip stays sharp when close
+      c.width = w * 3;
+      c.height = h * 3;
       const ctx2 = c.getContext('2d');
-      ctx2.scale(2, 2);
-      ctx2.fillStyle = 'rgba(8,12,24,0.55)';
-      ctx2.strokeStyle = 'rgba(94,235,255,0.35)';
-      ctx2.lineWidth = 1.5;
-      roundRect(ctx2, 0.5, 0.5, w - 1, h - 1, 8);
+      ctx2.scale(3, 3);
+      // dark plate + cyan edge for contrast against planets/stars
+      ctx2.fillStyle = 'rgba(4, 8, 18, 0.82)';
+      ctx2.strokeStyle = 'rgba(94, 235, 255, 0.55)';
+      ctx2.lineWidth = 1.6;
+      roundRect(ctx2, 0.8, 0.8, w - 1.6, h - 1.6, 9);
       ctx2.fill();
       ctx2.stroke();
-      ctx2.font = `600 ${fontSize}px "IBM Plex Sans", "PingFang SC", sans-serif`;
-      ctx2.fillStyle = '#e8eef8';
+      ctx2.font = `700 ${fontSize}px "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", sans-serif`;
       ctx2.textAlign = 'center';
       ctx2.textBaseline = 'middle';
+      // soft halo then solid white text
+      ctx2.shadowColor = 'rgba(0,0,0,0.85)';
+      ctx2.shadowBlur = 6;
+      ctx2.fillStyle = '#ffffff';
       ctx2.fillText(text, w / 2, h / 2);
+      ctx2.shadowBlur = 0;
       const tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
-      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      const mat = new THREE.SpriteMaterial({
+        map: tex,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+        opacity: 1
+      });
       const sprite = new THREE.Sprite(mat);
-      sprite.scale.set(w * 0.012, h * 0.012, 1);
-      sprite.userData.baseW = w * 0.012;
-      sprite.userData.baseH = h * 0.012;
+      sprite.scale.set(w * 0.02, h * 0.02, 1);
+      sprite.userData.baseW = w * 0.02;
+      sprite.userData.baseH = h * 0.02;
       sprite.renderOrder = 20;
       return sprite;
     }
@@ -1890,9 +2124,8 @@
       holder.add(mesh);
       pickables.push(mesh);
 
-      const label = makeLabelSprite('谷神星');
-      label.position.set(0, p.size + 0.55, 0);
-      holder.add(label);
+      // Ceres is not a planet — keep the body clickable but do not show a name label
+      const label = null;
 
       const phase = 1.9;
       pivot.rotation.y = phase;
@@ -1987,7 +2220,9 @@
     }
 
     function renderPanel(data) {
-      panelEyebrow.textContent = data.type || 'OVERVIEW';
+      panelEyebrow.textContent = data.name
+        ? (data.type ? `${data.type} · ${data.name}` : data.name)
+        : 'OVERVIEW';
       const colorHex = '#' + data.color.toString(16).padStart(6, '0');
       const facts = Object.entries(data.facts || {})
         .map(([k, v]) => `<div class="stat"><dt>${k}</dt><dd>${v}</dd></div>`)
@@ -2012,7 +2247,19 @@
           : data.period != null ? `<div class="badge">公转相对地球：${data.period >= 1 ? data.period + ' 年' : (365 * data.period).toFixed(0) + ' 天'}</div>`
           : ''}
       `;
+      infoPanel.dataset.mode = 'detail';
       infoPanel.classList.add('open');
+      infoPanel.classList.remove('expanded');
+      infoPanel.classList.remove('minimized');
+      setCloseBtn('×', '关闭');
+    }
+
+    function setCloseBtn(icon, title) {
+      const btn = document.getElementById('closePanel');
+      if (!btn) return;
+      btn.textContent = icon;
+      btn.title = title;
+      btn.setAttribute('aria-label', title);
     }
 
     function renderOverview() {
@@ -2032,9 +2279,54 @@
           <div class="stat"><dt>点击</dt><dd>看行星卡片</dd></div>
           <div class="stat"><dt>时间滑块</dt><dd>加快 / 放慢</dd></div>
         </div>
-        <div class="badge">选择侧栏行星或直接点击场景</div>
+        <div class="badge badge-hint">选择侧栏行星或直接点击场景</div>
       `;
+      infoPanel.dataset.mode = 'overview';
       infoPanel.classList.add('open');
+      infoPanel.classList.remove('expanded');
+      infoPanel.classList.remove('minimized');
+      // Mobile collapsed: chevron up to expand. Desktop: button hidden by CSS.
+      if (isMobileUI()) setCloseBtn('⌃', '展开说明');
+      else setCloseBtn('×', '关闭');
+    }
+
+    function isMobileUI() {
+      return window.matchMedia('(max-width: 820px)').matches;
+    }
+
+    function setOverviewStripLabel() {
+      panelEyebrow.textContent = 'OVERVIEW';
+      if (isMobileUI()) setCloseBtn('⌃', '展开说明');
+      else setCloseBtn('×', '关闭');
+    }
+
+    function setOverviewExpandedLabel() {
+      panelEyebrow.textContent = 'OVERVIEW';
+      // Mobile expanded: × collapses back to strip (no full close for overview)
+      if (isMobileUI()) setCloseBtn('×', '收起');
+      else setCloseBtn('×', '关闭');
+    }
+
+    /** Shrink cards so orbiting the scene isn't blocked (mobile only). */
+    function collapsePanelForCanvas() {
+      if (!isMobileUI() || !infoPanel.classList.contains('open')) return;
+      if (infoPanel.dataset.mode === 'overview') {
+        infoPanel.classList.remove('expanded');
+        setOverviewStripLabel();
+      } else if (infoPanel.dataset.mode === 'detail') {
+        infoPanel.classList.add('minimized');
+        setCloseBtn('⌃', '展开');
+      }
+    }
+
+    function expandPanelFromStrip() {
+      if (infoPanel.dataset.mode === 'overview') {
+        infoPanel.classList.add('expanded');
+        setOverviewExpandedLabel();
+      } else if (infoPanel.dataset.mode === 'detail') {
+        infoPanel.classList.remove('minimized');
+        setCloseBtn('×', '关闭');
+      }
     }
 
     function setSelectedVisual(id) {
@@ -2152,7 +2444,34 @@
       };
     }
 
-    document.getElementById('closePanel').addEventListener('click', clearSelection);
+    document.getElementById('closePanel').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const mode = infoPanel.dataset.mode;
+      if (mode === 'overview' && isMobileUI()) {
+        if (infoPanel.classList.contains('expanded')) {
+          infoPanel.classList.remove('expanded');
+          setOverviewStripLabel();
+        } else {
+          expandPanelFromStrip();
+        }
+        return;
+      }
+      if (mode === 'detail' && isMobileUI() && infoPanel.classList.contains('minimized')) {
+        expandPanelFromStrip();
+        return;
+      }
+      clearSelection();
+    });
+    // Tap strip to expand (overview or minimized detail)
+    infoPanel.addEventListener('click', (e) => {
+      if (!isMobileUI()) return;
+      if (e.target.closest('button')) return;
+      if (infoPanel.dataset.mode === 'overview' && !infoPanel.classList.contains('expanded')) {
+        expandPanelFromStrip();
+      } else if (infoPanel.dataset.mode === 'detail' && infoPanel.classList.contains('minimized')) {
+        expandPanelFromStrip();
+      }
+    });
     document.getElementById('btnReset').addEventListener('click', () => {
       animateCamera(new THREE.Vector3(28, 22, 42), new THREE.Vector3(0, 0, 0), 1.1);
       clearSelection();
@@ -2196,6 +2515,7 @@
     const pointer = new THREE.Vector2();
     let pointerDown = { x: 0, y: 0 };
     let isDragging = false;
+    let dragCollapsedThisGesture = false;
     let lastPickMoon = null;
     let lastPickMoonId = null;
     let selectedMoonId = null;
@@ -2205,12 +2525,16 @@
       pointerDown.y = e.clientY;
       isDragging = false;
       canvas.classList.add('dragging');
+      dragCollapsedThisGesture = false;
     });
     canvas.addEventListener('pointerup', (e) => {
       canvas.classList.remove('dragging');
       const dx = e.clientX - pointerDown.x;
       const dy = e.clientY - pointerDown.y;
-      if (dx * dx + dy * dy > 36) {
+      // Touch taps are less precise than mouse — larger drag threshold
+      const moveSq = dx * dx + dy * dy;
+      const dragThresh = (e.pointerType === 'touch') ? 160 : 36;
+      if (moveSq > dragThresh) {
         isDragging = true;
         return;
       }
@@ -2220,6 +2544,18 @@
       else clearSelection();
     });
     canvas.addEventListener('pointermove', (e) => {
+      // Collapse cards as soon as a real orbit drag starts (mobile)
+      if (!dragCollapsedThisGesture) {
+        const dx = e.clientX - pointerDown.x;
+        const dy = e.clientY - pointerDown.y;
+        const moveSq = dx * dx + dy * dy;
+        const dragThresh = (e.pointerType === 'touch') ? 160 : 36;
+        if (moveSq > dragThresh) {
+          isDragging = true;
+          dragCollapsedThisGesture = true;
+          collapsePanelForCanvas();
+        }
+      }
       updatePointer(e.clientX, e.clientY);
       if (isDragging) return;
       const hit = pick(e.clientX, e.clientY);
@@ -2292,7 +2628,8 @@
         const dayAbs = Math.abs(p.day) || 1;
 
         // Revolution: earth ≈ 5s/rev at 1×, outer planets compressed via pow
-        const orbitPeriod = Math.max(2.2, Math.pow(p.period, 0.45) * 5);
+        // Revolution: earth ≈ 10s/rev at 1× (slower so first-open is easy to follow)
+        const orbitPeriod = Math.max(4.5, Math.pow(p.period, 0.45) * 10);
         const orbitSpeed = (Math.PI * 2) / orbitPeriod;
 
         // Rotation: keep spin readable (not a blur, not a statue)
@@ -2324,13 +2661,13 @@
         }
       }
 
-      // Keep labels readable across zoom levels
+      // Keep labels readable across zoom levels — floor is higher so far view stays legible
       const camPos = camera.position;
       for (const [key, body] of bodies) {
         if (key.startsWith('_') || !body.label) continue;
         body.label.getWorldPosition(labelWorld);
         const d = camPos.distanceTo(labelWorld);
-        const s = THREE.MathUtils.clamp(d * 0.014, 0.22, 1.1);
+        const s = THREE.MathUtils.clamp(d * 0.016, 0.48, 1.15);
         body.label.scale.set(
           body.label.userData.baseW * s,
           body.label.userData.baseH * s,
@@ -2370,9 +2707,14 @@
 
     // Resize
     window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
+      applyCameraFit(true);
       renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        applyCameraFit(true);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }, 200);
     });
 
     // Init UI
