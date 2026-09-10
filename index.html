@@ -696,7 +696,7 @@
     <div class="dock glass">
       <button id="btnPause" type="button">暂停</button>
       <button id="btnOrbits" type="button" class="active">轨道</button>
-      <button id="btnLabels" type="button" class="active">标签</button>
+      <button id="btnLabels" type="button">标签</button>
       <button id="btnReset" type="button">重置视角</button>
       <div class="slider-wrap">
         <label for="speed">时间</label>
@@ -1767,7 +1767,7 @@
     const pickables = [];
     const bodies = new Map(); // id -> body object
     let showOrbits = true;
-    let showLabels = true;
+    let showLabels = false;
     let selectedId = null;
     let hoveredId = null;
     let paused = false;
@@ -2025,6 +2025,13 @@
         pickables.push(moonHit);
         // remember mesh for camera follow
         m._mesh = moonMesh;
+
+        // Moon name chip — shown only while this moon is selected
+        const moonLabel = makeLabelSprite(m.name);
+        moonLabel.position.set(0, m.size + 0.55, 0);
+        moonLabel.visible = false;
+        moonMesh.add(moonLabel);
+        m._label = moonLabel;
 
         // subtle orbit ring for outer-system moons only (keep inner system clean)
         if (p.id === 'jupiter' || p.id === 'saturn') {
@@ -2341,7 +2348,7 @@
         // Keep orbit neutral — a cyan orbit near the camera reads as a false “selection ring”
         body.orbitLine.material.color.set(on ? 0x6a82a8 : 0x3a4a6a);
         body.orbitLine.material.opacity = on ? 0.7 : (showOrbits ? 0.55 : 0);
-        if (body.label) body.label.material.opacity = showLabels ? (on ? 1 : 0.75) : 0;
+        if (body.label) body.label.material.opacity = 0.85;
         if (body.axisLine) body.axisLine.material.opacity = on ? 0.4 : 0;
       }
       planetNav.querySelectorAll('button').forEach(btn => {
@@ -2493,10 +2500,7 @@
     document.getElementById('btnLabels').addEventListener('click', (e) => {
       showLabels = !showLabels;
       e.target.classList.toggle('active', showLabels);
-      for (const [key, body] of bodies) {
-        if (key.startsWith('_')) continue;
-        body.label.visible = showLabels;
-      }
+      // Visibility is handled each frame (hover can still show a name)
     });
 
     window.addEventListener('keydown', (e) => {
@@ -2673,10 +2677,30 @@
           body.label.userData.baseH * s,
           1
         );
-        // Hide non-focused labels when close-up, so they don't flood the frame
-        if (showLabels) {
-          const near = d < 18;
-          body.label.visible = !near || key === selectedId || key === hoveredId;
+        // Labels: planet names only when 标签 is on; selected moon always shows its own name
+        if (body.label) {
+          // Hide planet chip while a moon is the selected focus
+          if (showLabels) {
+            const near = d < 18;
+            body.label.visible = !near || (key === selectedId && !selectedMoonId);
+          } else {
+            body.label.visible = key === selectedId && !selectedMoonId;
+          }
+        }
+      }
+      // Update moon labels
+      for (const m of Object.values(MOONS).flat()) {
+        if (!m._label) continue;
+        m._label.visible = !!(selectedMoonId && m.id === selectedMoonId);
+        if (m._label.visible && m._mesh) {
+          m._mesh.getWorldPosition(labelWorld);
+          const d = camPos.distanceTo(labelWorld);
+          const s = THREE.MathUtils.clamp(d * 0.018, 0.55, 1.1);
+          m._label.scale.set(
+            m._label.userData.baseW * s,
+            m._label.userData.baseH * s,
+            1
+          );
         }
       }
       headlight.position.copy(camera.position);
