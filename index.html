@@ -696,6 +696,7 @@
     <div class="dock glass">
       <button id="btnPause" type="button">暂停</button>
       <button id="btnOrbits" type="button" class="active">轨道</button>
+      <button id="btnBelts" type="button" class="active">碎石带</button>
       <button id="btnLabels" type="button">标签</button>
       <button id="btnReset" type="button">重置视角</button>
       <div class="slider-wrap">
@@ -1294,9 +1295,9 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       if (!keepDistance && portrait) {
-        // pull back a bit for first paint on phones
+        // pull back so outer Kuiper belt fits in a tall phone viewport
         const d = camera.position.length();
-        if (d < 30) camera.position.setLength(36);
+        if (d < 30) camera.position.setLength(48);
       }
     }
     applyCameraFit(false);
@@ -1305,7 +1306,7 @@
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
     controls.minDistance = 8;
-    controls.maxDistance = 180;
+    controls.maxDistance = 220;
     controls.target.set(0, 0, 0);
     controls.update();
 
@@ -1732,11 +1733,70 @@
       });
     }
 
+    /** Mobile / low-memory: smaller maps and lower anisotropy. */
+    function textureBudget() {
+      const narrow = window.matchMedia('(max-width: 820px)').matches;
+      const mem = navigator.deviceMemory || 8;
+      const low = narrow || mem <= 4;
+      return {
+        low,
+        // 8K sky is the biggest offender on phones
+        milkyWayUrl: low ? 'assets/textures/2k_stars_milky_way.jpg' : 'assets/textures/8k_stars_milky_way.jpg',
+        planetMaxW: low ? 1024 : 2048,
+        skyMaxW: low ? 2048 : 8192,
+        aniso: low ? 2 : renderer.capabilities.getMaxAnisotropy()
+      };
+    }
+
+    function downscaleImage(image, maxW) {
+      if (!image || !image.width || image.width <= maxW) return image || null;
+      const scale = maxW / image.width;
+      const w = maxW;
+      const h = Math.max(1, Math.round(image.height * scale));
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(image, 0, 0, w, h);
+      return c;
+    }
+
+    function texFromImage(img, { srgb = true, wrapS = false, aniso = 4 } = {}) {
+      if (!img) return null;
+      const tex = new THREE.CanvasTexture(img);
+      if (srgb) tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = aniso;
+      if (wrapS) tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.needsUpdate = true;
+      return tex;
+    }
+
     async function loadAllTextures() {
-      const entries = Object.entries(TEX);
+      const budget = textureBudget();
+      // swap sky source on low-end before download
+      const TEX_M = { ...TEX, milkyWay: budget.milkyWayUrl };
+      const entries = Object.entries(TEX_M);
       let done = 0;
       await Promise.all(entries.map(async ([key, url]) => {
-        textures[key] = await loadTexture(url, { srgb: key !== 'saturnRing', wrapS: key === 'saturnRing' });
+        let tex = await loadTexture(url, { srgb: key !== 'saturnRing', wrapS: key === 'saturnRing' });
+        if (tex && tex.image) {
+          const maxW = key === 'milkyWay' ? budget.skyMaxW : budget.planetMaxW;
+          const img = downscaleImage(tex.image, maxW);
+          if (img !== tex.image) {
+            tex.dispose?.();
+            tex = texFromImage(img, {
+              srgb: key !== 'saturnRing',
+              wrapS: key === 'saturnRing',
+              aniso: budget.aniso
+            });
+          } else {
+            tex.anisotropy = budget.aniso;
+          }
+        }
+        textures[key] = tex;
         done += 1;
         const el = document.querySelector('#loader p');
         if (el) el.textContent = `LOADING TEXTURES ${done}/${entries.length}`;
@@ -1747,16 +1807,21 @@
       for (const key of planetKeys) {
         const t = textures[key];
         if (!t || !t.image) continue;
-        // Mars/Earth/Pluto have bright polar ice — fade more
         const fade = (key === 'mars' || key === 'earth' || key === 'pluto') ? 0.09
           : (key === 'saturn' || key === 'jupiter' || key === 'uranus' || key === 'neptune') ? 0.07
           : 0.05;
         const softened = softenPolarRows(t.image, { fade, mode: 'blend' });
-        if (softened) textures[key] = softened;
+        if (softened) {
+          softened.anisotropy = budget.aniso;
+          textures[key] = softened;
+        }
       }
       if (textures.earthClouds?.image) {
         const softened = softenPolarRows(textures.earthClouds.image, { fade: 0.07, mode: 'darken' });
-        if (softened) textures.earthClouds = softened;
+        if (softened) {
+          softened.anisotropy = budget.aniso;
+          textures.earthClouds = softened;
+        }
       }
     }
 
@@ -2070,33 +2135,244 @@
       });
     }
 
-    // Asteroid belt (Mars–Jupiter)
-    (function addAsteroidBelt() {
-      const count = 900;
+    // Asteroid belt (Mars–Jupiter) + Kuiper belt (beyond Neptune)
+    // Visual goal: icy/dust disk like a science diagram — not neon rings.
+    const asteroidBelt = new THREE.Group();
+    const kuiperBelt = new THREE.Group();
+    system.add(asteroidBelt);
+    system.add(kuiperBelt);
+
+    function makeDustSpriteTexture() {
+      const s = 32;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const ctx = c.getContext('2d');
+      const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+      g.addColorStop(0, 'rgba(255,255,255,1)');
+      g.addColorStop(0.35, 'rgba(255,255,255,0.5)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, s, s);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+    const dustSprite = makeDustSpriteTexture();
+
+    function gauss(mean, sigma) {
+      const u = Math.random() || 1e-9;
+      const v = Math.random();
+      return mean + sigma * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    }
+
+    /** Soft annulus so far belts read as a disk (subtle, not neon). */
+    function makeRingBandTexture(inner01, outer01) {
+      const S = 256;
+      const c = document.createElement('canvas');
+      c.width = c.height = S;
+      const ctx = c.getContext('2d');
+      const img = ctx.createImageData(S, S);
+      const mid = (inner01 + outer01) / 2;
+      const half = Math.max(0.05, (outer01 - inner01) / 2);
+      for (let y = 0; y < S; y++) {
+        for (let x = 0; x < S; x++) {
+          const dx = x - S / 2;
+          const dy = y - S / 2;
+          const r = Math.sqrt(dx * dx + dy * dy) / (S / 2);
+          const t = (r - mid) / half;
+          let a = Math.exp(-t * t * 2.4);
+          if (r < inner01 * 0.88 || r > outer01 * 1.06) a = 0;
+          const i = (y * S + x) * 4;
+          img.data[i] = 255;
+          img.data[i + 1] = 255;
+          img.data[i + 2] = 255;
+          img.data[i + 3] = Math.floor(255 * a);
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    function addBeltFog(group, inner, outer, color, opacity) {
+      const tex = makeRingBandTexture(inner / outer, 1.0);
+      const geo = new THREE.PlaneGeometry(outer * 2, outer * 2);
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        color,
+        transparent: true,
+        opacity,
+        depthWrite: false,
+        blending: THREE.NormalBlending,
+        side: THREE.DoubleSide
+      });
+      const fog = new THREE.Mesh(geo, mat);
+      fog.rotation.x = -Math.PI / 2;
+      fog.renderOrder = -2;
+      group.add(fog);
+      return fog;
+    }
+
+    /**
+     * Dust disk: gaussian radius, real thickness, slight inclination,
+     * vertex-color brightness falloff with heliocentric distance.
+     */
+    function buildDustDisk({
+      count,
+      rInner,
+      rOuter,
+      rPeak,
+      rSigma,
+      ySigma,
+      inclSigma,
+      colorNear,
+      colorFar,
+      size,
+      opacity
+    }) {
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(count * 3);
+      const col = new Float32Array(count * 3);
+      const cNear = new THREE.Color(colorNear);
+      const cFar = new THREE.Color(colorFar);
+      const tmp = new THREE.Color();
+      const v = new THREE.Vector3();
+      const q = new THREE.Quaternion();
+
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        let r = gauss(rPeak, rSigma);
+        r = THREE.MathUtils.clamp(r, rInner, rOuter);
+        // small random orbital-plane tilt (makes the disk thick, not a knife edge)
+        const incl = (Math.random() - 0.5) * 2 * inclSigma;
+        const node = Math.random() * Math.PI * 2;
+        q.setFromAxisAngle(new THREE.Vector3(Math.cos(node), 0, Math.sin(node)), incl);
+        v.set(Math.cos(a) * r, gauss(0, ySigma), Math.sin(a) * r);
+        v.applyQuaternion(q);
+        pos[i * 3] = v.x;
+        pos[i * 3 + 1] = v.y;
+        pos[i * 3 + 2] = v.z;
+
+        // farther → slightly cooler, but keep enough luminance so the disk stays visible
+        const t = THREE.MathUtils.clamp((r - rInner) / (rOuter - rInner), 0, 1);
+        tmp.copy(cNear).lerp(cFar, t);
+        const shade = 0.78 + Math.random() * 0.22;
+        col[i * 3] = tmp.r * shade;
+        col[i * 3 + 1] = tmp.g * shade;
+        col[i * 3 + 2] = tmp.b * shade;
+      }
+
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      // Screen-sized specks stay visible when zoomed out to the outer system
+      const mat = new THREE.PointsMaterial({
+        size,
+        map: dustSprite,
+        vertexColors: true,
+        transparent: true,
+        opacity,
+        sizeAttenuation: false,
+        depthWrite: false,
+        blending: THREE.NormalBlending,
+        alphaTest: 0.01
+      });
+      return new THREE.Points(geo, mat);
+    }
+
+    /** A few larger bodies so the belt isn't only dust. */
+    function addBeltBodies(group, { count, rInner, rOuter, rPeak, rSigma, ySigma, size, color }) {
       const geo = new THREE.BufferGeometry();
       const pos = new Float32Array(count * 3);
       for (let i = 0; i < count; i++) {
         const a = Math.random() * Math.PI * 2;
-        const r = 22.2 + Math.random() * 2.8;
-        const y = (Math.random() - 0.5) * 0.55;
+        const r = THREE.MathUtils.clamp(gauss(rPeak, rSigma), rInner, rOuter);
         pos[i * 3] = Math.cos(a) * r;
-        pos[i * 3 + 1] = y;
+        pos[i * 3 + 1] = gauss(0, ySigma * 0.6);
         pos[i * 3 + 2] = Math.sin(a) * r;
       }
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
       const mat = new THREE.PointsMaterial({
-        color: 0x8a7f72,
-        size: 0.1,
-        map: makeStarSpriteTexture(),
+        size,
+        color,
+        map: dustSprite,
         transparent: true,
-        opacity: 0.7,
-        sizeAttenuation: true,
+        opacity: 0.9,
+        sizeAttenuation: false,
         depthWrite: false,
-        blending: THREE.AdditiveBlending,
+        blending: THREE.NormalBlending,
         alphaTest: 0.02
       });
-      const belt = new THREE.Points(geo, mat);
-      system.add(belt);
+      group.add(new THREE.Points(geo, mat));
+    }
+
+    (function addAsteroidBelt() {
+      asteroidBelt.add(buildDustDisk({
+        count: 7000,
+        rInner: 20.8,
+        rOuter: 25.8,
+        rPeak: 23.2,
+        rSigma: 1.35,
+        ySigma: 0.55,
+        inclSigma: 0.04,
+        colorNear: 0xd8c4a8,
+        colorFar: 0xa89888,
+        size: 1.3,
+        opacity: 0.85
+      }));
+      addBeltBodies(asteroidBelt, {
+        count: 140,
+        rInner: 21,
+        rOuter: 25.5,
+        rPeak: 23.2,
+        rSigma: 1.2,
+        ySigma: 0.4,
+        size: 2.4,
+        color: 0xc8b8a0
+      });
+      addBeltFog(asteroidBelt, 21.0, 25.6, 0xb0a090, 0.14);
+    })();
+
+    (function addKuiperBelt() {
+      // main classical belt — gray-white icy dust (science-diagram look)
+      kuiperBelt.add(buildDustDisk({
+        count: 14000,
+        rInner: 56,
+        rOuter: 74,
+        rPeak: 64,
+        rSigma: 4.8,
+        ySigma: 1.15,
+        inclSigma: 0.08,
+        colorNear: 0xe8eef4,
+        colorFar: 0xa8b4c0,
+        size: 1.7,
+        opacity: 0.92
+      }));
+      // scattered disk further out
+      kuiperBelt.add(buildDustDisk({
+        count: 3500,
+        rInner: 72,
+        rOuter: 88,
+        rPeak: 78,
+        rSigma: 5,
+        ySigma: 1.8,
+        inclSigma: 0.12,
+        colorNear: 0xc8d2dc,
+        colorFar: 0x8a96a4,
+        size: 1.4,
+        opacity: 0.65
+      }));
+      addBeltBodies(kuiperBelt, {
+        count: 100,
+        rInner: 58,
+        rOuter: 72,
+        rPeak: 64,
+        rSigma: 4,
+        ySigma: 0.8,
+        size: 3.2,
+        color: 0xd8e0e8
+      });
+      addBeltFog(kuiperBelt, 57, 74, 0xb0bcc8, 0.22);
     })();
 
     // Ceres — dwarf planet in the belt (not a moon)
@@ -2494,8 +2770,17 @@
       for (const [key, body] of bodies) {
         if (key.startsWith('_') || key === 'sun') continue;
         const highlighted = key === selectedId;
-        body.orbitLine.material.opacity = showOrbits ? (highlighted ? 0.95 : 0.55) : 0;
+        if (body.orbitLine) {
+          body.orbitLine.material.opacity = showOrbits ? (highlighted ? 0.95 : 0.55) : 0;
+        }
       }
+    });
+    let showBelts = true;
+    document.getElementById('btnBelts').addEventListener('click', (e) => {
+      showBelts = !showBelts;
+      e.target.classList.toggle('active', showBelts);
+      asteroidBelt.visible = showBelts;
+      kuiperBelt.visible = showBelts;
     });
     document.getElementById('btnLabels').addEventListener('click', (e) => {
       showLabels = !showLabels;
@@ -2653,6 +2938,11 @@
       }
       // sun slow spin
       if (!paused) sunMesh.rotation.y += 0.08 * dt * timeScale;
+      // slow differential drift for asteroid / Kuiper belts
+      if (!paused) {
+        asteroidBelt.rotation.y += 0.012 * dt * timeScale;
+        kuiperBelt.rotation.y += 0.004 * dt * timeScale;
+      }
       // Clouds track the surface almost exactly (tiny lag for life)
       if (bodyMeshExtras.earthClouds && !paused) {
         const cloudSpeed = (Math.PI * 2) / 1.1;
