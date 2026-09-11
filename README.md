@@ -2,6 +2,27 @@
 
 基于 **Three.js** 的交互式太阳系科普演示：九大行星（含冥王星）轨道与自转公转、主要卫星、小行星带 / 柯伊伯带，以及适合小朋友阅读的中文科普卡片。
 
+## 演示视频
+
+仓库 [`demo/`](./demo/) 中附有交互录屏，可在下方直接播放（或点进文件下载）：
+
+### 桌面端（横屏，约 17s）
+
+全景公转 → 地球 / 土星环 / 木星卫星 → 拉远碎石带 → 暂停与时间倍速
+
+<video src="demo/solar-demo-wide.mp4" width="100%" controls preload="metadata"></video>
+
+### 手机竖屏（约 4s）
+
+总览默认收起、点选地球与科普卡片
+
+<video src="demo/solar-demo-phone.mp4" width="320" controls preload="metadata"></video>
+
+| 文件 | 说明 |
+|------|------|
+| [`demo/solar-demo-wide.mp4`](./demo/solar-demo-wide.mp4) | 桌面端完整交互演示 |
+| [`demo/solar-demo-phone.mp4`](./demo/solar-demo-phone.mp4) | 手机端 UI 演示 |
+
 ## 功能
 
 - **天体**：太阳、水星、金星、地球、火星、木星、土星、天王星、海王星、冥王星、谷神星（矮行星）
@@ -33,6 +54,7 @@ python3 -m http.server 8080
 ```
 .
 ├── index.html          # 主页面（场景、UI、逻辑）
+├── demo/               # 演示录屏（桌面 / 手机）
 ├── vendor/
 │   ├── three.module.js # Three.js
 │   └── OrbitControls.js
@@ -50,5 +72,5 @@ python3 -m http.server 8080
 
 ## 许可
 
-代码：本仓库（请按你的项目需要补充 LICENSE）。  
+
 贴图资源：CC BY 4.0（Solar System Scope / NASA 数据）。

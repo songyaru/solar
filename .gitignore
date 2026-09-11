@@ -18,3 +18,9 @@
 
 # node相关（如果你不用js包管理器可以删掉这行）
 node_modules/
+
+# 录屏中间帧（体积大，只保留成片）
+demo/frames/
+promo/**/frames/
+
+promo/
