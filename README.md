@@ -11,15 +11,20 @@
 
 ### 桌面端（横屏，约 17s）
 
+<video controls width="700" preload="metadata">
+  <source src="./assets/solar-demo-wide.mp4" type="video/mp4">
+</video>
 全景公转 → 地球 / 土星环 / 木星卫星 → 拉远碎石带 → 暂停与时间倍速
 
-<video src="assets/solar-demo-wide.mp4" width="100%" controls preload="metadata"></video>
+
 
 ### 手机竖屏（约 4s）
 
+<video controls width="700" preload="metadata">
+  <source src="./assets/solar-demo-phone.mp4" type="video/mp4">
+</video>
 总览默认收起、点选地球与科普卡片
 
-<video src="assets/solar-demo-phone.mp4" width="320" controls preload="metadata"></video>
 
 
 ## 功能
