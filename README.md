@@ -4,24 +4,24 @@
 
 ## 演示视频
 
-仓库 [`demo/`](./demo/) 中附有交互录屏，可在下方直接播放（或点进文件下载）：
+仓库 [`assets/demo/`](./assets/demo/) 中附有交互录屏，可在下方直接播放：
 
 ### 桌面端（横屏，约 17s）
 
 全景公转 → 地球 / 土星环 / 木星卫星 → 拉远碎石带 → 暂停与时间倍速
 
-<video src="demo/solar-demo-wide.mp4" width="100%" controls preload="metadata"></video>
+<video src="assets/demo/solar-demo-wide.mp4" width="100%" controls preload="metadata"></video>
 
 ### 手机竖屏（约 4s）
 
 总览默认收起、点选地球与科普卡片
 
-<video src="demo/solar-demo-phone.mp4" width="320" controls preload="metadata"></video>
+<video src="assets/demo/solar-demo-phone.mp4" width="320" controls preload="metadata"></video>
 
 | 文件 | 说明 |
 |------|------|
-| [`demo/solar-demo-wide.mp4`](./demo/solar-demo-wide.mp4) | 桌面端完整交互演示 |
-| [`demo/solar-demo-phone.mp4`](./demo/solar-demo-phone.mp4) | 手机端 UI 演示 |
+| [`assets/demo/solar-demo-wide.mp4`](./assets/demo/solar-demo-wide.mp4) | 桌面端完整交互演示 |
+| [`assets/demo/solar-demo-phone.mp4`](./assets/demo/solar-demo-phone.mp4) | 手机端 UI 演示 |
 
 ## 功能
 
@@ -54,12 +54,12 @@ python3 -m http.server 8080
 ```
 .
 ├── index.html          # 主页面（场景、UI、逻辑）
-├── demo/               # 演示录屏（桌面 / 手机）
 ├── vendor/
 │   ├── three.module.js # Three.js
 │   └── OrbitControls.js
 └── assets/
-    └── textures/       # 行星 / 星空贴图（2K 与部分 1K / 8K）
+    ├── textures/       # 行星 / 星空贴图（2K 与部分 1K / 8K）
+    └── demo/           # 演示录屏（桌面 / 手机）
 ```
 
 ## 贴图说明

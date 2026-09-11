@@ -20,7 +20,7 @@
 node_modules/
 
 # 录屏中间帧（体积大，只保留成片）
-demo/frames/
+assets/demo/frames/
 promo/**/frames/
 
 promo/
