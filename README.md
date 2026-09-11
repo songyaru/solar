@@ -4,24 +4,23 @@
 
 ## 演示视频
 
-仓库 [`assets/demo/`](./assets/demo/) 中附有交互录屏，可在下方直接播放：
+| 文件 | 说明 |
+|------|------|
+| [`assets/solar-demo-wide.mp4`](./assets/solar-demo-wide.mp4) | 桌面端完整交互演示 |
+| [`assets/solar-demo-phone.mp4`](./assets/solar-demo-phone.mp4) | 手机端 UI 演示 |
 
 ### 桌面端（横屏，约 17s）
 
 全景公转 → 地球 / 土星环 / 木星卫星 → 拉远碎石带 → 暂停与时间倍速
 
-<video src="assets/demo/solar-demo-wide.mp4" width="100%" controls preload="metadata"></video>
+<video src="assets/solar-demo-wide.mp4" width="100%" controls preload="metadata"></video>
 
 ### 手机竖屏（约 4s）
 
 总览默认收起、点选地球与科普卡片
 
-<video src="assets/demo/solar-demo-phone.mp4" width="320" controls preload="metadata"></video>
+<video src="assets/solar-demo-phone.mp4" width="320" controls preload="metadata"></video>
 
-| 文件 | 说明 |
-|------|------|
-| [`assets/demo/solar-demo-wide.mp4`](./assets/demo/solar-demo-wide.mp4) | 桌面端完整交互演示 |
-| [`assets/demo/solar-demo-phone.mp4`](./assets/demo/solar-demo-phone.mp4) | 手机端 UI 演示 |
 
 ## 功能
 
@@ -58,8 +57,7 @@ python3 -m http.server 8080
 │   ├── three.module.js # Three.js
 │   └── OrbitControls.js
 └── assets/
-    ├── textures/       # 行星 / 星空贴图（2K 与部分 1K / 8K）
-    └── demo/           # 演示录屏（桌面 / 手机）
+    └── textures/       # 行星 / 星空贴图（2K 与部分 1K / 8K）
 ```
 
 ## 贴图说明
@@ -71,6 +69,5 @@ python3 -m http.server 8080
 需要支持 WebGL 与 ES modules 的现代浏览器（Chrome / Edge / Firefox / Safari 近年版本）。手机端建议系统浏览器或 Chrome。
 
 ## 许可
-
 
 贴图资源：CC BY 4.0（Solar System Scope / NASA 数据）。
